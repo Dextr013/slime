@@ -63,8 +63,15 @@ func _ready():
 	_setup_wave_timer_ui()
 	_calculate_spawn_zone()
 	
+	# ИСПРАВЛЕНО: Ждем готовности языка перед стартом игры
+	if not I18n.is_ready:
+		await I18n.language_ready
+	
 	GameManager.start_game()
 	_connect_signals()
+	
+	# ИСПРАВЛЕНО: Принудительное обновление всех UI элементов с правильным языком
+	_update_all_ui_texts()
 	
 	call_deferred("_show_instructions")
 
@@ -167,28 +174,34 @@ func _setup_camera():
 		print("📷 Camera setup complete")
 
 func _setup_adaptive_background():
-	"""ИСПРАВЛЕНО: фон без полос"""
+	"""КРИТИЧНО ИСПРАВЛЕНО: Универсальное масштабирование фона для всех платформ"""
 	if not background:
 		return
 		
-	print("🎨 Setting up adaptive background...")
+	print("Setting up adaptive background for all platforms...")
 	
 	if background is TextureRect:
-		# Полноэкранный фон
-		background.size = Vector2(GAME_WIDTH, GAME_HEIGHT)
-		background.position = Vector2.ZERO
+		# КРИТИЧНО: Полностью переделано масштабирование
+		# Устанавливаем anchors на весь экран
+		background.anchor_left = 0.0
+		background.anchor_top = 0.0
+		background.anchor_right = 1.0
+		background.anchor_bottom = 1.0
+		
+		# Сбрасываем offset
+		background.offset_left = 0
+		background.offset_top = 0
+		background.offset_right = 0
+		background.offset_bottom = 0
+		
+		# КРИТИЧНО: Правильные режимы для покрытия всего экрана
 		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		
-		# Центрируем фон
-		background.anchor_left = 0
-		background.anchor_top = 0
-		background.anchor_right = 1
-		background.anchor_bottom = 1
-		background.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		background.grow_vertical = Control.GROW_DIRECTION_BOTH
+		# Убираем взаимодействие с мышью
+		background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		
-		print("✅ Background adapted (no borders)")
+		print("Background (TextureRect) configured: covers full screen on all platforms")
 		
 	elif background is Sprite2D:
 		background.centered = true
@@ -198,11 +211,11 @@ func _setup_adaptive_background():
 			var texture_size = background.texture.get_size()
 			var scale_x = GAME_WIDTH / texture_size.x
 			var scale_y = GAME_HEIGHT / texture_size.y
-			# Увеличиваем масштаб чтобы покрыть весь экран
-			var scale_factor = max(scale_x, scale_y) * 1.2
+			# Берем максимальный масштаб чтобы покрыть весь экран
+			var scale_factor = max(scale_x, scale_y) * 1.1
 			background.scale = Vector2(scale_factor, scale_factor)
 		
-		print("✅ Background (Sprite2D) scaled to cover")
+		print("Background (Sprite2D) scaled to fully cover")
 
 func _setup_effects():
 	if fireflies_effect:
@@ -286,6 +299,11 @@ func _connect_signals():
 	# ИСПРАВЛЕНО: убран await из обработчика сигнала
 	GameManager.achievement_earned.connect(_on_achievement_earned)
 	
+	# ИСПРАВЛЕНО: Подписываемся на изменение языка
+	if I18n.language_changed.is_connected(_on_language_changed):
+		I18n.language_changed.disconnect(_on_language_changed)
+	I18n.language_changed.connect(_on_language_changed)
+	
 	spawn_timer.timeout.connect(_on_spawn_timer_timeout)
 	wave_timer.timeout.connect(_on_wave_timer_timeout)
 	
@@ -311,6 +329,18 @@ func _connect_signals():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				resume_btn.custom_minimum_size = Vector2(500, 120)
 				resume_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Добавлена локализация и обработка кнопки Menu в паузе
+		var menu_btn_pause = pause_panel.get_node_or_null("VBoxContainer/MenuButton")
+		if menu_btn_pause:
+			menu_btn_pause.text = I18n.translate("main_menu")
+			if menu_btn_pause.pressed.is_connected(_on_pause_menu_pressed):
+				menu_btn_pause.pressed.disconnect(_on_pause_menu_pressed)
+			menu_btn_pause.pressed.connect(_on_pause_menu_pressed)
+			
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn_pause.custom_minimum_size = Vector2(500, 120)
+				menu_btn_pause.add_theme_font_size_override("font_size", 42)
 	
 	var game_over_panel = ui.get_node_or_null("GameOverPanel/Panel")
 	if game_over_panel:
@@ -323,6 +353,18 @@ func _connect_signals():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				restart_btn.custom_minimum_size = Vector2(500, 120)
 				restart_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Добавлена локализация и обработка кнопки Menu в game over
+		var menu_btn_gameover = game_over_panel.get_node_or_null("VBoxContainer/MenuButton")
+		if menu_btn_gameover:
+			menu_btn_gameover.text = I18n.translate("main_menu")
+			if menu_btn_gameover.pressed.is_connected(_on_gameover_menu_pressed):
+				menu_btn_gameover.pressed.disconnect(_on_gameover_menu_pressed)
+			menu_btn_gameover.pressed.connect(_on_gameover_menu_pressed)
+			
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn_gameover.custom_minimum_size = Vector2(500, 120)
+				menu_btn_gameover.add_theme_font_size_override("font_size", 42)
 	
 	print("✅ All signals connected")
 
@@ -446,6 +488,33 @@ func _on_wave_changed(wave):
 	if label:
 		label.text = I18n.translate("wave") + ": " + str(wave)
 
+func _on_language_changed(_lang: String):
+	"""НОВОЕ: Обновление всех UI элементов при смене языка"""
+	print("🌍 Language changed, updating all UI texts")
+	_update_all_ui_texts()
+
+func _update_all_ui_texts():
+	"""НОВОЕ: Принудительное обновление всех текстов UI"""
+	# Обновляем основные лейблы
+	var score_label = ui.get_node_or_null("TopBar/VBoxContainer/ScoreLabel")
+	if score_label:
+		score_label.text = I18n.translate("score") + ": " + str(GameManager.score)
+	
+	var health_label = ui.get_node_or_null("TopBar/VBoxContainer/HealthLabel")
+	if health_label:
+		health_label.text = I18n.translate("health") + ": " + str(GameManager.health) + "/" + str(GameManager.max_health)
+	
+	var wave_label = ui.get_node_or_null("TopBar/VBoxContainer/WaveLabel")
+	if wave_label:
+		wave_label.text = I18n.translate("wave") + ": " + str(GameManager.wave)
+	
+	# Обновляем кнопки
+	var pause_button = ui.get_node_or_null("PauseButton")
+	if pause_button:
+		pause_button.text = "||"  # Pause всегда символ
+	
+	print("✅ All UI texts updated with current language")
+
 func _on_game_over():
 	spawn_timer.stop()
 	wave_timer.stop()
@@ -486,12 +555,12 @@ func _display_game_over_screen():
 					restart_btn.add_theme_font_size_override("font_size", 42)
 
 func _on_achievement_earned(_achievement_id, achievement_name):
-	"""ИСПРАВЛЕНО: без await - не блокирует игру"""
-	print("🏆 Achievement earned: ", achievement_name)
+	"""КРИТИЧНО ИСПРАВЛЕНО: Показ достижения БЕЗ блокировки игры"""
+	print("Achievement earned: ", achievement_name)
 	
 	var notif = ui.get_node_or_null("AchievementNotification")
 	if not notif:
-		print("⚠️ Achievement notification node not found")
+		print("Achievement notification node not found")
 		return
 	
 	var label = notif.get_node_or_null("Panel/Label")
@@ -500,12 +569,18 @@ func _on_achievement_earned(_achievement_id, achievement_name):
 	
 	notif.visible = true
 	
-	# Используем таймер вместо await
-	var timer = get_tree().create_timer(3.0)
-	timer.timeout.connect(func(): 
+	# КРИТИЧНО: Используем Timer ноду вместо SceneTreeTimer
+	var timer = Timer.new()
+	timer.wait_time = 3.0
+	timer.one_shot = true
+	timer.timeout.connect(func():
 		if is_instance_valid(notif):
 			notif.visible = false
+		if is_instance_valid(timer):
+			timer.queue_free()
 	)
+	add_child(timer)
+	timer.start()
 
 func _on_pause_pressed():
 	print("⏸️ Pause pressed")
@@ -535,6 +610,14 @@ func _update_pause_panel_texts():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				resume_btn.custom_minimum_size = Vector2(500, 120)
 				resume_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Локализация кнопки Menu
+		var menu_btn = pause_panel.get_node_or_null("MenuButton")
+		if menu_btn:
+			menu_btn.text = I18n.translate("main_menu")
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn.custom_minimum_size = Vector2(500, 120)
+				menu_btn.add_theme_font_size_override("font_size", 42)
 
 func _on_resume_pressed():
 	print("▶️ Resume pressed")
@@ -547,6 +630,30 @@ func _on_resume_pressed():
 	var panel = ui.get_node_or_null("PausePanel")
 	if panel:
 		panel.visible = false
+
+func _on_pause_menu_pressed():
+	"""НОВОЕ: Обработка кнопки Menu в окне паузы"""
+	print("🏠 Menu button pressed from pause")
+	GameManager.save_game_data()
+	GameManager.game_active = false
+	get_tree().paused = false
+	
+	if OS.has_feature("web"):
+		YandexGames.gameplay_stop()
+	
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+
+func _on_gameover_menu_pressed():
+	"""НОВОЕ: Обработка кнопки Menu в окне game over"""
+	print("🏠 Menu button pressed from game over")
+	GameManager.save_game_data()
+	GameManager.game_active = false
+	get_tree().paused = false
+	
+	if OS.has_feature("web"):
+		YandexGames.gameplay_stop()
+	
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 func _on_restart_pressed():
 	print("🔄 Restart pressed")

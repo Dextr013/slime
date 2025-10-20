@@ -36,17 +36,28 @@ func _ready():
 		else:
 			print("⚠️ SDK timeout, using fallback")
 	
+	# ИСПРАВЛЕНО: Ждем готовности языка ПЕРЕД загрузкой данных
+	if not I18n.is_ready:
+		print("⏳ Waiting for I18n...")
+		await I18n.language_ready
+		print("✅ I18n ready")
+	
 	# Загрузка данных с таймаутом
 	print("⏳ Loading game data...")
 	data_timeout_reached = false
-	var data_timer = get_tree().create_timer(3.0)
+	var data_timer = get_tree().create_timer(5.0)  # ИСПРАВЛЕНО: увеличен до 5 секунд
 	data_timer.timeout.connect(_on_data_timeout)
 	
-	GameManager.call_deferred("load_game_data")
-	await get_tree().create_timer(3.0).timeout
+	# ИСПРАВЛЕНО: Прямой вызов без call_deferred для await
+	GameManager.load_game_data()
+	
+	# Ждем завершения загрузки (с таймаутом)
+	await get_tree().create_timer(5.0).timeout
 	
 	if not data_timeout_reached:
 		print("✅ Game data loaded")
+	else:
+		print("⚠️ Game data load timeout, using defaults")
 	
 	_setup_ui()
 	_hide_loading()
@@ -65,7 +76,7 @@ func _ready():
 		DebugChecker.check_all()
 
 func _setup_play_button_early():
-	"""НОВОЕ: Ранняя настройка кнопки для гарантии работы"""
+	"""ИСПРАВЛЕНО: Надежная настройка кнопки для всех платформ"""
 	if not play_button:
 		push_error("❌ Play button not found!")
 		return
@@ -73,29 +84,38 @@ func _setup_play_button_early():
 	# Очищаем все существующие соединения
 	if play_button.pressed.is_connected(_on_play_pressed):
 		play_button.pressed.disconnect(_on_play_pressed)
+	if play_button.gui_input.is_connected(_on_play_button_gui_input):
+		play_button.gui_input.disconnect(_on_play_button_gui_input)
 	
-	# КРИТИЧНО: Множественные способы подключения
+	# КРИТИЧНО: Подключаем оба сигнала для максимальной надежности
 	play_button.pressed.connect(_on_play_pressed)
+	play_button.gui_input.connect(_on_play_button_gui_input)
 	
-	# Дополнительная обработка через gui_input (для тач)
-	if not play_button.gui_input.is_connected(_on_play_button_gui_input):
-		play_button.gui_input.connect(_on_play_button_gui_input)
-	
-	# Устанавливаем focus mode
+	# Обязательные настройки для тач-устройств
 	play_button.focus_mode = Control.FOCUS_ALL
 	play_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	
+	# НОВОЕ: Принудительно активируем кнопку
+	play_button.disabled = false
+	play_button.visible = true
 	
 	print("✅ Play button early setup complete")
 
 func _on_play_button_gui_input(event: InputEvent):
-	"""НОВОЕ: Дополнительная обработка тач-событий"""
+	"""ИСПРАВЛЕНО: Улучшенная обработка всех типов ввода"""
+	if not is_ready or not play_button or play_button.disabled:
+		return
+	
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			print("👆 Touch detected on play button!")
+			# Помечаем событие как обработанное
+			get_viewport().set_input_as_handled()
 			_on_play_pressed()
 	elif event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			print("🖱️ Click detected on play button!")
+			get_viewport().set_input_as_handled()
 			_on_play_pressed()
 
 func _setup_display_mode():
@@ -270,12 +290,18 @@ func _apply_web_fullscreen_fix():
 func _show_loading():
 	if play_button:
 		play_button.disabled = true
-		play_button.text = I18n.translate("loading")
+		# ИСПРАВЛЕНО: Ждем готовности языка для корректного перевода
+		if I18n.is_ready:
+			play_button.text = I18n.translate("loading")
+		else:
+			# Пока язык не готов, ставим русский по умолчанию
+			play_button.text = "Загрузка..."
 
 func _hide_loading():
 	if play_button:
 		play_button.disabled = false
-		play_button.text = I18n.translate("play")
+		# ИСПРАВЛЕНО: Гарантируем что язык готов
+		play_button.text = I18n.translate("play") if I18n.is_ready else "PLAY"
 
 func _setup_ui():
 	if animated_title and animated_title.has_method("set_rainbow_colors"):
@@ -374,7 +400,8 @@ func _on_play_pressed():
 	# Деактивируем кнопку сразу
 	if play_button:
 		play_button.disabled = true
-		play_button.text = I18n.translate("loading")
+		# ИСПРАВЛЕНО: Гарантированно используем правильный перевод
+		play_button.text = I18n.translate("loading") if I18n.is_ready else "Загрузка..."
 	
 	print("🎮 Starting game from menu")
 	
@@ -388,24 +415,28 @@ func _on_play_pressed():
 	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 func _input(event):
-	"""НОВОЕ: Глобальная обработка тач-событий как fallback"""
+	"""ИСПРАВЛЕНО: Улучшенная глобальная обработка ввода"""
 	if not is_ready:
 		return
 	
-	# Проверяем тап по области кнопки
+	# Проверяем тап по области кнопки (fallback для тач-устройств)
 	if event is InputEventScreenTouch and event.pressed:
 		if play_button and play_button.visible and not play_button.disabled:
 			var button_rect = play_button.get_global_rect()
-			if button_rect.has_point(event.position):
+			# ИСПРАВЛЕНО: Добавлена небольшая зона расширения для удобства
+			var expanded_rect = button_rect.grow(20)
+			if expanded_rect.has_point(event.position):
 				print("👆 Global touch detected on button area!")
-				_on_play_pressed()
 				get_viewport().set_input_as_handled()
+				_on_play_pressed()
+				return
 	
-	# Отладка для десктопа
+	# Поддержка клавиатуры для десктопа/отладки
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER:
-			print("⌨️ Keyboard shortcut - starting game")
-			_on_play_pressed()
+			if play_button and play_button.visible and not play_button.disabled:
+				print("⌨️ Keyboard shortcut - starting game")
+				_on_play_pressed()
 		elif event.keycode == KEY_ESCAPE:
 			print("ESC pressed")
 			GameManager.call_deferred("save_game_data")

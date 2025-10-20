@@ -9,8 +9,9 @@ enum SlimeType { SMALL, MEDIUM, BOSS }
 @export var boss_speed_multiplier: float = 0.4
 
 @export_category("Touch Settings")
-# ИСПРАВЛЕНО: увеличена область касания для мобильных
-@export var touch_area_multiplier: float = 3.0
+# ИСПРАВЛЕНО: оптимизирована область касания - было 3.0 (слишком много!)
+# Теперь 1.3 для комфортного попадания без перекрытия соседних слаймов
+@export var touch_area_multiplier: float = 1.3
 
 var wave_speed_multiplier: float = 1.0
 var pop_effect_scene = preload("res://effects/slime_pop_effect.tscn")

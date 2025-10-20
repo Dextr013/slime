@@ -1,6 +1,11 @@
 extends Node
 
 var current_language := "ru"
+var is_ready := false
+
+# ИСПРАВЛЕНО: Сигнал для уведомления когда язык установлен
+signal language_ready(lang: String)
+signal language_changed(lang: String)
 
 var translations := {
 	"ru": {
@@ -23,13 +28,15 @@ var translations := {
 		"how_to_play": "Как играть",
 		"start_game": "Начать игру",
 		"title_label": "СЛАЙМ ПОП!",
-		"instructions_text": "Нажимайте на слаймов чтобы уничтожить!\n\nМаленькие: 1 клик\nСредние: 2 клика\nБоссы: 5 кликов\n\nНе дайте им достичь низа!",
+		"instructions_text": "Нажимайте на слаймов, чтобы уничтожить их!\n\nМаленькие: 1 клик\nСредние: 2 клика\nБоссы: 5 кликов\n\nНе дайте им достичь низа экрана!",
 		"loading": "Загрузка...",
 		"game_paused": "Игра на паузе",
 		"settings": "Настройки",
 		"sound": "Звук",
 		"music": "Музыка",
 		"effects": "Эффекты",
+		"back": "Назад",
+		"continue": "Продолжить",
 		# Достижения на русском
 		"first_kill": "Первая кровь",
 		"first_kill_desc": "Убейте первого слайма",
@@ -64,16 +71,18 @@ var translations := {
 		"how_to_play": "How to Play",
 		"start_game": "Start Game",
 		"title_label": "SLIME POP!",
-		"instructions_text": "Tap slimes to destroy them!\n\nSmall: 1 tap\nMedium: 2 taps\nBoss: 5 taps\n\nDon't let them reach bottom!",
+		"instructions_text": "Tap slimes to destroy them!\n\nSmall: 1 tap\nMedium: 2 taps\nBoss: 5 taps\n\nDon't let them reach the bottom!",
 		"loading": "Loading...",
 		"game_paused": "Game Paused",
 		"settings": "Settings",
 		"sound": "Sound",
 		"music": "Music",
 		"effects": "Effects",
+		"back": "Back",
+		"continue": "Continue",
 		# Достижения на английском
 		"first_kill": "First Blood",
-		"first_kill_desc": "Kill first slime",
+		"first_kill_desc": "Kill your first slime",
 		"wave_5": "Survivor",
 		"wave_5_desc": "Reach wave 5",
 		"wave_10": "Veteran",
@@ -94,7 +103,7 @@ var translations := {
 		"restart": "Yeniden Başlat",
 		"game_over": "Oyun Bitti",
 		"score": "Puan",
-		"high_score": "En Yüksek",
+		"high_score": "En Yüksek Puan",
 		"wave": "Dalga",
 		"health": "Can",
 		"achievement": "Başarı Kilidi Açıldı",
@@ -105,13 +114,15 @@ var translations := {
 		"how_to_play": "Nasıl Oynanır",
 		"start_game": "Oyuna Başla",
 		"title_label": "SLIME POP!",
-		"instructions_text": "Slaymları yok etmek için dokunun!\n\nKüçük: 1 dokunuş\nOrta: 2 dokunuş\nBoss: 5 dokunuş\n\nAlta ulaşmasına izin vermeyin!",
+		"instructions_text": "Slaymları yok etmek için dokunun!\n\nKüçük: 1 dokunuş\nOrta: 2 dokunuş\nBoss: 5 dokunuş\n\nAlta ulaşmalarına izin vermeyin!",
 		"loading": "Yükleniyor...",
 		"game_paused": "Oyun Duraklatıldı",
 		"settings": "Ayarlar",
 		"sound": "Ses",
 		"music": "Müzik",
 		"effects": "Efektler",
+		"back": "Geri",
+		"continue": "Devam Et",
 		# Достижения на турецком
 		"first_kill": "İlk Kan",
 		"first_kill_desc": "İlk slaymı öldür",
@@ -130,30 +141,62 @@ var translations := {
 
 func _ready():
 	print("I18n autoload initialized")
-	detect_language()
+	# ИСПРАВЛЕНО: Немедленное определение языка без задержки
+	_detect_language_immediate()
+	is_ready = true
+	emit_signal("language_ready", current_language)
+	print("✅ I18n ready, language:", current_language)
 
-func detect_language():
+func _detect_language_immediate():
+	"""ИСПРАВЛЕНО: Немедленное определение языка браузера"""
 	if OS.has_feature("web"):
+		# Сначала берем язык из браузера немедленно
 		var code = """
 		(function() {
-			var lang = 'ru';
-			if (window.ysdk && window.ysdk.environment) {
-				lang = window.ysdk.environment.i18n.lang;
-			} else {
-				lang = navigator.language.substring(0, 2);
-			}
+			var lang = navigator.language.substring(0, 2);
+			console.log('Browser language:', lang);
 			return lang;
 		})();
 		"""
 		var result = JavaScriptBridge.eval(code)
 		if result and translations.has(result):
 			current_language = result
+			print("✅ Language set immediately from browser: ", current_language)
 		else:
-			current_language = "en"
+			current_language = "ru"  # Русский по умолчанию
+			print("⚠️ Browser language not supported, using Russian")
+		
+		# Потом попробуем получить из Yandex SDK если доступен
+		call_deferred("_update_language_from_yandex")
 	else:
 		current_language = "ru"
+		print("Language detected: ", current_language)
+
+func _update_language_from_yandex():
+	"""Обновление языка из Yandex SDK если доступен"""
+	if not OS.has_feature("web"):
+		return
 	
-	print("Language detected: ", current_language)
+	var code = """
+	(function() {
+		if (window.ysdk && window.ysdk.environment && window.ysdk.environment.i18n) {
+			var lang = window.ysdk.environment.i18n.lang;
+			console.log('Yandex SDK language:', lang);
+			return lang;
+		}
+		return null;
+	})();
+	"""
+	var result = JavaScriptBridge.eval(code)
+	if result and translations.has(result) and result != current_language:
+		var old_lang = current_language
+		current_language = result
+		print("✅ Language updated from Yandex SDK: ", old_lang, " → ", current_language)
+		emit_signal("language_changed", current_language)
+
+func detect_language():
+	"""Публичный метод для обратной совместимости"""
+	_detect_language_immediate()
 
 func translate(key: String) -> String:
 	if translations.has(current_language) and translations[current_language].has(key):

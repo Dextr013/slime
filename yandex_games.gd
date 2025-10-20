@@ -158,10 +158,12 @@ func _on_js_callback(args):
 				emit_signal("player_data_loaded", player_data)
 				
 		"save_completed":
-			print("✅ Save completed successfully")
+			print("✅ Save completed successfully to Yandex Cloud")
 			
 		"save_error":
-			push_error("❌ Save failed")
+			var error_msg = args[1] if args.size() > 1 else "Unknown error"
+			push_error("❌ Save failed: " + error_msg)
+			print("⚠️ Data may not be saved to cloud!")
 			
 		"visibility_changed":
 			if args.size() > 1:
@@ -270,27 +272,37 @@ func save_data(data: Dictionary):
 		print("⏳ Waiting for SDK before save...")
 		await sdk_ready
 	
+	# ИСПРАВЛЕНО: Проверяем что данные валидны перед сохранением
+	if data.is_empty():
+		push_error("❌ Trying to save empty data!")
+		return
+	
 	var json_data = JSON.stringify(data)
+	print("📦 Saving data to Yandex: ", json_data)
+	
 	var code = """
 	(function() {
 		console.log('💾 Attempting to save data...');
+		console.log('📦 Data to save:', %s);
 		
 		if (window.player && window.player.setData) {
 			window.player.setData(%s, true)
 				.then(() => {
-					console.log('✅ Data saved successfully');
+					console.log('✅ Data saved successfully to Yandex');
 					window.godotYandexCallback(['save_completed']);
 				})
 				.catch(error => {
 					console.error('❌ Save error:', error);
-					window.godotYandexCallback(['save_error']);
+					console.error('Error details:', error.message, error.stack);
+					window.godotYandexCallback(['save_error', error.toString()]);
 				});
 		} else {
-			console.warn('⚠️ Player API not available for saving');
-			window.godotYandexCallback(['save_completed']); // Все равно считаем успешным
+			console.error('⚠️ Player API not available for saving!');
+			console.log('window.player:', window.player);
+			window.godotYandexCallback(['save_error', 'Player API not available']);
 		}
 	})();
-	""" % [json_data]
+	""" % [json_data, json_data]
 	
 	JavaScriptBridge.eval(code)
 
@@ -306,10 +318,8 @@ func load_data() -> Dictionary:
 	
 	print("📥 Loading data from Yandex...")
 	
-	# Если данные уже загружены, возвращаем их
-	if not player_data.is_empty():
-		print("📦 Using cached player data: ", player_data)
-		return player_data
+	# ИСПРАВЛЕНО: Очищаем кеш перед загрузкой для получения актуальных данных
+	player_data = {}
 	
 	# Пытаемся загрузить данные через JS
 	var code = """
@@ -320,7 +330,10 @@ func load_data() -> Dictionary:
 			window.player.getData()
 				.then(data => {
 					console.log('✅ Player data loaded:', data);
-					window.godotYandexCallback(['player_data_loaded', data || {}]);
+					// ИСПРАВЛЕНО: гарантируем что data это объект
+					var playerData = data || {};
+					console.log('📦 Parsed data:', playerData);
+					window.godotYandexCallback(['player_data_loaded', playerData]);
 				})
 				.catch(error => {
 					console.error('❌ Load error:', error);
@@ -335,15 +348,18 @@ func load_data() -> Dictionary:
 	
 	JavaScriptBridge.eval(code)
 	
-	# Ждем загрузки данных
+	# Ждем загрузки данных с таймаутом
 	var wait_time = 0.0
-	while player_data.is_empty() and wait_time < 3.0:
+	var max_wait = 5.0  # ИСПРАВЛЕНО: увеличен таймаут до 5 секунд
+	while player_data.is_empty() and wait_time < max_wait:
 		await get_tree().create_timer(0.1).timeout
 		wait_time += 0.1
 	
 	if player_data.is_empty():
 		print("⚠️ No player data received after waiting, using empty dict")
 		player_data = {}
+	else:
+		print("✅ Player data successfully loaded")
 	
 	print("📦 Final loaded data: ", player_data)
 	return player_data

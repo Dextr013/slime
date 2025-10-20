@@ -137,7 +137,7 @@ func toggle_pause():
 	print("⏸️ Game paused: ", paused)
 
 func save_game_data():
-	"""ИСПРАВЛЕНО: синхронное сохранение без await"""
+	"""ИСПРАВЛЕНО: правильное асинхронное сохранение"""
 	var high_score = max(score, save_data.get("high_score", 0))
 	
 	var saved_achievements = {}
@@ -156,8 +156,10 @@ func save_game_data():
 	print("💾 Saving game data: high_score=", high_score)
 	
 	if OS.has_feature("web"):
-		# ИСПРАВЛЕНО: вызываем асинхронно без ожидания
-		YandexGames.call_deferred("save_data", save_data)
+		# КРИТИЧНО ИСПРАВЛЕНО: правильный вызов с аргументами через callable
+		var data_to_save = save_data.duplicate()
+		var save_callable = func(): YandexGames.save_data(data_to_save)
+		save_callable.call_deferred()
 	else:
 		_save_local_data()
 	
@@ -205,7 +207,7 @@ func _load_from_yandex():
 func _apply_loaded_data(loaded_data: Dictionary):
 	"""Применяет загруженные данные"""
 	if loaded_data.is_empty():
-		print("⚠️ No save data, using defaults")
+		print("⚠️ No save data, using defaults (first time player)")
 		save_data = {
 			"high_score": 0,
 			"achievements": {},
@@ -213,25 +215,38 @@ func _apply_loaded_data(loaded_data: Dictionary):
 			"last_save_timestamp": 0
 		}
 	else:
-		save_data["high_score"] = loaded_data.get("high_score", 0)
-		save_data["total_games"] = loaded_data.get("total_games", 0)
+		# ИСПРАВЛЕНО: Безопасное извлечение данных с проверкой типов
+		save_data["high_score"] = int(loaded_data.get("high_score", 0))
+		save_data["total_games"] = int(loaded_data.get("total_games", 0))
 		save_data["last_save_timestamp"] = loaded_data.get("last_save_timestamp", 0)
-		save_data["achievements"] = loaded_data.get("achievements", {})
 		
-		print("📦 Data loaded: high_score=", save_data.get("high_score", 0))
+		# Безопасная загрузка достижений
+		var loaded_achievements = loaded_data.get("achievements", {})
+		if loaded_achievements is Dictionary:
+			save_data["achievements"] = loaded_achievements
+		else:
+			save_data["achievements"] = {}
+		
+		print("📦 Data loaded from cloud:")
+		print("  - High Score: ", save_data["high_score"])
+		print("  - Total Games: ", save_data["total_games"])
+		print("  - Achievements: ", save_data["achievements"].size(), " unlocked")
 	
-	# Восстанавливаем достижения
-	if save_data.has("achievements"):
+	# Восстанавливаем достижения в игровую систему
+	if save_data.has("achievements") and save_data["achievements"] is Dictionary:
 		var loaded_achievements = save_data["achievements"]
 		for achievement_id in loaded_achievements:
 			if achievements.has(achievement_id):
 				var achievement_data = loaded_achievements[achievement_id]
+				# Поддержка двух форматов: bool и Dictionary
 				if achievement_data is bool:
 					achievements[achievement_id]["unlocked"] = achievement_data
+					print("  ✓ Achievement restored: ", achievement_id)
 				elif achievement_data is Dictionary and achievement_data.has("unlocked"):
 					achievements[achievement_id]["unlocked"] = achievement_data["unlocked"]
+					print("  ✓ Achievement restored: ", achievement_id)
 	
-	print("✅ Data applied successfully")
+	print("✅ Data applied successfully, ready to play")
 
 func _load_local_data() -> Dictionary:
 	"""Локальная загрузка для десктопа"""
