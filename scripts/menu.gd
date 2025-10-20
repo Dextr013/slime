@@ -39,14 +39,19 @@ func _ready():
 	# Загрузка данных с таймаутом
 	print("⏳ Loading game data...")
 	data_timeout_reached = false
-	var data_timer = get_tree().create_timer(3.0)
+	var data_timer = get_tree().create_timer(5.0)  # ИСПРАВЛЕНО: увеличен до 5 секунд
 	data_timer.timeout.connect(_on_data_timeout)
 	
-	GameManager.call_deferred("load_game_data")
-	await get_tree().create_timer(3.0).timeout
+	# ИСПРАВЛЕНО: Прямой вызов без call_deferred для await
+	GameManager.load_game_data()
+	
+	# Ждем завершения загрузки (с таймаутом)
+	await get_tree().create_timer(5.0).timeout
 	
 	if not data_timeout_reached:
 		print("✅ Game data loaded")
+	else:
+		print("⚠️ Game data load timeout, using defaults")
 	
 	_setup_ui()
 	_hide_loading()
