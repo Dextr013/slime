@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3 uid="uid://c3oxe6hbkl73o"]
+
+[ext_resource type="Script" uid="uid://cn73vmrw6oukc" path="res://scripts/slime.gd" id="1_2d52u"]
+[ext_resource type="SpriteFrames" uid="uid://db68r6xcd1om1" path="res://assets/slimes_blue.tres" id="3_v5wyi"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_n6pvg"]
+radius = 32.0156
+
+[node name="Slime" type="Area2D"]
+script = ExtResource("1_2d52u")
+
+[node name="SlimeSprite" type="AnimatedSprite2D" parent="."]
+scale = Vector2(1.5, 1.5)
+sprite_frames = ExtResource("3_v5wyi")
+animation = &"walk"
+speed_scale = 0.3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_n6pvg")
+one_way_collision_margin = 20.0
+debug_color = Color(0.373621, 0.557906, 0.78272, 0.419608)
+
+[node name="HPBar" type="ProgressBar" parent="."]
+visible = false
+modulate = Color(1, 1, 1, 0)
+self_modulate = Color(1, 1, 1, 0)
+custom_minimum_size = Vector2(100, 10)
+offset_left = -45.0
+offset_top = 60.0
+offset_right = 45.0
+offset_bottom = 72.0
+mouse_filter = 2
+min_value = 1.0
+max_value = 10.0
+value = 10.0
+show_percentage = false
+
+[node name="InvincibilityTimer" type="Timer" parent="."]
+wait_time = 0.15

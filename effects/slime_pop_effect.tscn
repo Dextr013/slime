@@ -1,0 +1,151 @@
+[gd_scene load_steps=19 format=3 uid="uid://ckwrm4a3jvl85"]
+
+[ext_resource type="Script" uid="uid://bks6w7tea3a5g" path="res://effects/slime_pop_effect.gd" id="1_idymm"]
+[ext_resource type="Shader" uid="uid://c7vluhpni4jgn" path="res://shaders/jelly.gdshader" id="2_ghn13"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_cnl1v"]
+shader = ExtResource("2_ghn13")
+shader_parameter/wobble_amount = 0.1
+shader_parameter/wobble_speed = 5.0
+shader_parameter/slime_color = Color(0.4, 1, 0.4, 1)
+shader_parameter/shine_intensity = 0.3
+shader_parameter/squish_x = 1.0
+shader_parameter/squish_y = 1.0
+
+[sub_resource type="Gradient" id="Gradient_djdre"]
+offsets = PackedFloat32Array(0.0881226, 1)
+colors = PackedColorArray(0.682353, 0, 0.701961, 1, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_74gi7"]
+gradient = SubResource("Gradient_djdre")
+
+[sub_resource type="Curve" id="Curve_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.3, 1.3), 0.0, 0.0, 0, 0, Vector2(1, 0), -2.5, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_scale"]
+curve = SubResource("Curve_scale")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_main"]
+lifetime_randomness = 0.6
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 15.0
+spread = 180.0
+initial_velocity_min = 200.0
+initial_velocity_max = 450.0
+angular_velocity_min = -360.0
+angular_velocity_max = 360.0
+gravity = Vector3(0, 400, 0)
+damping_min = 20.0
+damping_max = 40.0
+scale_min = 1.5
+scale_max = 3.5
+scale_curve = SubResource("CurveTexture_scale")
+color = Color(0.590888, 0.465028, 0.973458, 1)
+color_initial_ramp = SubResource("GradientTexture1D_74gi7")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_v7vio"]
+shader = ExtResource("2_ghn13")
+shader_parameter/wobble_amount = 0.1
+shader_parameter/wobble_speed = 5.0
+shader_parameter/slime_color = Color(0.4, 1, 0.4, 1)
+shader_parameter/shine_intensity = 0.3
+shader_parameter/squish_x = 1.0
+shader_parameter/squish_y = 1.0
+
+[sub_resource type="Curve" id="Curve_splash"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 1.2), 0.0, 0.0, 0, 0, Vector2(1, 0), -2.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_splash"]
+curve = SubResource("Curve_splash")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_splash"]
+lifetime_randomness = 0.4
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 8.0
+spread = 180.0
+initial_velocity_min = 120.0
+initial_velocity_max = 250.0
+gravity = Vector3(0, 500, 0)
+damping_min = 15.0
+damping_max = 30.0
+scale_min = 3.0
+scale_max = 6.0
+scale_curve = SubResource("CurveTexture_splash")
+color = Color(1, 0.388235, 0.52549, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fj4tr"]
+shader = ExtResource("2_ghn13")
+shader_parameter/wobble_amount = 0.1
+shader_parameter/wobble_speed = 5.0
+shader_parameter/slime_color = Color(0.4, 1, 0.4, 1)
+shader_parameter/shine_intensity = 0.3
+shader_parameter/squish_x = 1.0
+shader_parameter/squish_y = 1.0
+
+[sub_resource type="Curve" id="Curve_shockwave_radial"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.3, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), -1.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_shockwave_radial"]
+curve = SubResource("Curve_shockwave_radial")
+
+[sub_resource type="Curve" id="Curve_shockwave"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.5, 0.8), 0.0, 0.0, 0, 0, Vector2(1, 0), -1.5, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_shockwave"]
+curve = SubResource("Curve_shockwave")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_shockwave"]
+lifetime_randomness = 0.3
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 5.0
+spread = 180.0
+initial_velocity_min = 150.0
+initial_velocity_max = 300.0
+radial_accel_min = 50.0
+radial_accel_max = 100.0
+radial_accel_curve = SubResource("CurveTexture_shockwave_radial")
+scale_min = 2.0
+scale_max = 4.0
+scale_curve = SubResource("CurveTexture_shockwave")
+
+[node name="SlimePopEffect" type="Node2D"]
+script = ExtResource("1_idymm")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+material = SubResource("ShaderMaterial_cnl1v")
+amount = 50
+lifetime = 1.2
+explosiveness = 0.85
+randomness = 0.4
+process_material = SubResource("ParticleProcessMaterial_main")
+
+[node name="SplashParticles" type="GPUParticles2D" parent="."]
+material = SubResource("ShaderMaterial_v7vio")
+emitting = false
+amount = 25
+lifetime = 2.45
+one_shot = true
+explosiveness = 0.9
+randomness = 0.3
+process_material = SubResource("ParticleProcessMaterial_splash")
+
+[node name="ShockwaveParticles" type="GPUParticles2D" parent="."]
+material = SubResource("ShaderMaterial_fj4tr")
+emitting = false
+amount = 30
+lifetime = 0.26
+one_shot = true
+explosiveness = 0.95
+randomness = 0.2
+process_material = SubResource("ParticleProcessMaterial_shockwave")
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+energy = 3.0
+texture_scale = 3.0
