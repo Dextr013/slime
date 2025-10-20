@@ -174,21 +174,34 @@ func _setup_camera():
 		print("📷 Camera setup complete")
 
 func _setup_adaptive_background():
-	"""ИСПРАВЛЕНО: фон без полос - увеличенный масштаб"""
+	"""КРИТИЧНО ИСПРАВЛЕНО: Универсальное масштабирование фона для всех платформ"""
 	if not background:
 		return
 		
-	print("Setting up adaptive background...")
+	print("Setting up adaptive background for all platforms...")
 	
 	if background is TextureRect:
-		# КРИТИЧНО: Устанавливаем размер больше чем экран
-		background.size = Vector2(GAME_WIDTH * 1.2, GAME_HEIGHT * 1.2)
-		background.position = Vector2(-GAME_WIDTH * 0.1, -GAME_HEIGHT * 0.1)
-		background.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-		background.stretch_mode = TextureRect.STRETCH_SCALE
+		# КРИТИЧНО: Полностью переделано масштабирование
+		# Устанавливаем anchors на весь экран
+		background.anchor_left = 0.0
+		background.anchor_top = 0.0
+		background.anchor_right = 1.0
+		background.anchor_bottom = 1.0
+		
+		# Сбрасываем offset
+		background.offset_left = 0
+		background.offset_top = 0
+		background.offset_right = 0
+		background.offset_bottom = 0
+		
+		# КРИТИЧНО: Правильные режимы для покрытия всего экрана
+		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		
+		# Убираем взаимодействие с мышью
 		background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		
-		print("Background adapted: no borders, covering full screen")
+		print("Background (TextureRect) configured: covers full screen on all platforms")
 		
 	elif background is Sprite2D:
 		background.centered = true
@@ -198,8 +211,8 @@ func _setup_adaptive_background():
 			var texture_size = background.texture.get_size()
 			var scale_x = GAME_WIDTH / texture_size.x
 			var scale_y = GAME_HEIGHT / texture_size.y
-			# ИСПРАВЛЕНО: Увеличиваем масштаб еще больше
-			var scale_factor = max(scale_x, scale_y) * 1.5
+			# Берем максимальный масштаб чтобы покрыть весь экран
+			var scale_factor = max(scale_x, scale_y) * 1.1
 			background.scale = Vector2(scale_factor, scale_factor)
 		
 		print("Background (Sprite2D) scaled to fully cover")
@@ -542,14 +555,9 @@ func _display_game_over_screen():
 					restart_btn.add_theme_font_size_override("font_size", 42)
 
 func _on_achievement_earned(_achievement_id, achievement_name):
-	"""ИСПРАВЛЕНО: Асинхронное отображение без блокировки"""
+	"""КРИТИЧНО ИСПРАВЛЕНО: Показ достижения БЕЗ блокировки игры"""
 	print("Achievement earned: ", achievement_name)
 	
-	# КРИТИЧНО: Используем call_deferred чтобы не блокировать игру
-	call_deferred("_show_achievement_notification", achievement_name)
-
-func _show_achievement_notification(achievement_name: String):
-	"""НОВОЕ: Отдельная функция для показа достижения"""
 	var notif = ui.get_node_or_null("AchievementNotification")
 	if not notif:
 		print("Achievement notification node not found")
@@ -561,13 +569,18 @@ func _show_achievement_notification(achievement_name: String):
 	
 	notif.visible = true
 	
-	# ИСПРАВЛЕНО: Используем SceneTree timer без await
-	get_tree().create_timer(3.0).timeout.connect(
-		func():
-			if is_instance_valid(notif):
-				notif.visible = false,
-		CONNECT_ONE_SHOT
+	# КРИТИЧНО: Используем Timer ноду вместо SceneTreeTimer
+	var timer = Timer.new()
+	timer.wait_time = 3.0
+	timer.one_shot = true
+	timer.timeout.connect(func():
+		if is_instance_valid(notif):
+			notif.visible = false
+		if is_instance_valid(timer):
+			timer.queue_free()
 	)
+	add_child(timer)
+	timer.start()
 
 func _on_pause_pressed():
 	print("⏸️ Pause pressed")
