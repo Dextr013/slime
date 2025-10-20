@@ -311,6 +311,18 @@ func _connect_signals():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				resume_btn.custom_minimum_size = Vector2(500, 120)
 				resume_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Добавлена локализация и обработка кнопки Menu в паузе
+		var menu_btn_pause = pause_panel.get_node_or_null("VBoxContainer/MenuButton")
+		if menu_btn_pause:
+			menu_btn_pause.text = I18n.translate("main_menu")
+			if menu_btn_pause.pressed.is_connected(_on_pause_menu_pressed):
+				menu_btn_pause.pressed.disconnect(_on_pause_menu_pressed)
+			menu_btn_pause.pressed.connect(_on_pause_menu_pressed)
+			
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn_pause.custom_minimum_size = Vector2(500, 120)
+				menu_btn_pause.add_theme_font_size_override("font_size", 42)
 	
 	var game_over_panel = ui.get_node_or_null("GameOverPanel/Panel")
 	if game_over_panel:
@@ -323,6 +335,18 @@ func _connect_signals():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				restart_btn.custom_minimum_size = Vector2(500, 120)
 				restart_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Добавлена локализация и обработка кнопки Menu в game over
+		var menu_btn_gameover = game_over_panel.get_node_or_null("VBoxContainer/MenuButton")
+		if menu_btn_gameover:
+			menu_btn_gameover.text = I18n.translate("main_menu")
+			if menu_btn_gameover.pressed.is_connected(_on_gameover_menu_pressed):
+				menu_btn_gameover.pressed.disconnect(_on_gameover_menu_pressed)
+			menu_btn_gameover.pressed.connect(_on_gameover_menu_pressed)
+			
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn_gameover.custom_minimum_size = Vector2(500, 120)
+				menu_btn_gameover.add_theme_font_size_override("font_size", 42)
 	
 	print("✅ All signals connected")
 
@@ -535,6 +559,14 @@ func _update_pause_panel_texts():
 			if OS.has_feature("mobile") or OS.has_feature("web"):
 				resume_btn.custom_minimum_size = Vector2(500, 120)
 				resume_btn.add_theme_font_size_override("font_size", 42)
+		
+		# ИСПРАВЛЕНО: Локализация кнопки Menu
+		var menu_btn = pause_panel.get_node_or_null("MenuButton")
+		if menu_btn:
+			menu_btn.text = I18n.translate("main_menu")
+			if OS.has_feature("mobile") or OS.has_feature("web"):
+				menu_btn.custom_minimum_size = Vector2(500, 120)
+				menu_btn.add_theme_font_size_override("font_size", 42)
 
 func _on_resume_pressed():
 	print("▶️ Resume pressed")
@@ -547,6 +579,30 @@ func _on_resume_pressed():
 	var panel = ui.get_node_or_null("PausePanel")
 	if panel:
 		panel.visible = false
+
+func _on_pause_menu_pressed():
+	"""НОВОЕ: Обработка кнопки Menu в окне паузы"""
+	print("🏠 Menu button pressed from pause")
+	GameManager.save_game_data()
+	GameManager.game_active = false
+	get_tree().paused = false
+	
+	if OS.has_feature("web"):
+		YandexGames.gameplay_stop()
+	
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+
+func _on_gameover_menu_pressed():
+	"""НОВОЕ: Обработка кнопки Menu в окне game over"""
+	print("🏠 Menu button pressed from game over")
+	GameManager.save_game_data()
+	GameManager.game_active = false
+	get_tree().paused = false
+	
+	if OS.has_feature("web"):
+		YandexGames.gameplay_stop()
+	
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 func _on_restart_pressed():
 	print("🔄 Restart pressed")

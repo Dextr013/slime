@@ -136,30 +136,57 @@ var translations := {
 
 func _ready():
 	print("I18n autoload initialized")
-	detect_language()
+	# ИСПРАВЛЕНО: Немедленное определение языка без задержки
+	_detect_language_immediate()
 
-func detect_language():
+func _detect_language_immediate():
+	"""ИСПРАВЛЕНО: Немедленное определение языка браузера"""
 	if OS.has_feature("web"):
+		# Сначала берем язык из браузера немедленно
 		var code = """
 		(function() {
-			var lang = 'ru';
-			if (window.ysdk && window.ysdk.environment) {
-				lang = window.ysdk.environment.i18n.lang;
-			} else {
-				lang = navigator.language.substring(0, 2);
-			}
+			var lang = navigator.language.substring(0, 2);
+			console.log('Browser language:', lang);
 			return lang;
 		})();
 		"""
 		var result = JavaScriptBridge.eval(code)
 		if result and translations.has(result):
 			current_language = result
+			print("✅ Language set immediately from browser: ", current_language)
 		else:
-			current_language = "en"
+			current_language = "ru"  # Русский по умолчанию
+			print("⚠️ Browser language not supported, using Russian")
+		
+		# Потом попробуем получить из Yandex SDK если доступен
+		call_deferred("_update_language_from_yandex")
 	else:
 		current_language = "ru"
+		print("Language detected: ", current_language)
+
+func _update_language_from_yandex():
+	"""Обновление языка из Yandex SDK если доступен"""
+	if not OS.has_feature("web"):
+		return
 	
-	print("Language detected: ", current_language)
+	var code = """
+	(function() {
+		if (window.ysdk && window.ysdk.environment && window.ysdk.environment.i18n) {
+			var lang = window.ysdk.environment.i18n.lang;
+			console.log('Yandex SDK language:', lang);
+			return lang;
+		}
+		return null;
+	})();
+	"""
+	var result = JavaScriptBridge.eval(code)
+	if result and translations.has(result) and result != current_language:
+		current_language = result
+		print("✅ Language updated from Yandex SDK: ", current_language)
+
+func detect_language():
+	"""Публичный метод для обратной совместимости"""
+	_detect_language_immediate()
 
 func translate(key: String) -> String:
 	if translations.has(current_language) and translations[current_language].has(key):
