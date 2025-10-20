@@ -290,7 +290,12 @@ func _apply_web_fullscreen_fix():
 func _show_loading():
 	if play_button:
 		play_button.disabled = true
-		play_button.text = I18n.translate("loading")
+		# ИСПРАВЛЕНО: Ждем готовности языка для корректного перевода
+		if I18n.is_ready:
+			play_button.text = I18n.translate("loading")
+		else:
+			# Пока язык не готов, ставим русский по умолчанию
+			play_button.text = "Загрузка..."
 
 func _hide_loading():
 	if play_button:
@@ -395,7 +400,8 @@ func _on_play_pressed():
 	# Деактивируем кнопку сразу
 	if play_button:
 		play_button.disabled = true
-		play_button.text = I18n.translate("loading")
+		# ИСПРАВЛЕНО: Гарантированно используем правильный перевод
+		play_button.text = I18n.translate("loading") if I18n.is_ready else "Загрузка..."
 	
 	print("🎮 Starting game from menu")
 	
