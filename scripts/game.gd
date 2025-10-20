@@ -63,8 +63,15 @@ func _ready():
 	_setup_wave_timer_ui()
 	_calculate_spawn_zone()
 	
+	# ИСПРАВЛЕНО: Ждем готовности языка перед стартом игры
+	if not I18n.is_ready:
+		await I18n.language_ready
+	
 	GameManager.start_game()
 	_connect_signals()
+	
+	# ИСПРАВЛЕНО: Принудительное обновление всех UI элементов с правильным языком
+	_update_all_ui_texts()
 	
 	call_deferred("_show_instructions")
 
@@ -286,6 +293,11 @@ func _connect_signals():
 	# ИСПРАВЛЕНО: убран await из обработчика сигнала
 	GameManager.achievement_earned.connect(_on_achievement_earned)
 	
+	# ИСПРАВЛЕНО: Подписываемся на изменение языка
+	if I18n.language_changed.is_connected(_on_language_changed):
+		I18n.language_changed.disconnect(_on_language_changed)
+	I18n.language_changed.connect(_on_language_changed)
+	
 	spawn_timer.timeout.connect(_on_spawn_timer_timeout)
 	wave_timer.timeout.connect(_on_wave_timer_timeout)
 	
@@ -469,6 +481,33 @@ func _on_wave_changed(wave):
 	var label = ui.get_node_or_null("TopBar/VBoxContainer/WaveLabel")
 	if label:
 		label.text = I18n.translate("wave") + ": " + str(wave)
+
+func _on_language_changed(_lang: String):
+	"""НОВОЕ: Обновление всех UI элементов при смене языка"""
+	print("🌍 Language changed, updating all UI texts")
+	_update_all_ui_texts()
+
+func _update_all_ui_texts():
+	"""НОВОЕ: Принудительное обновление всех текстов UI"""
+	# Обновляем основные лейблы
+	var score_label = ui.get_node_or_null("TopBar/VBoxContainer/ScoreLabel")
+	if score_label:
+		score_label.text = I18n.translate("score") + ": " + str(GameManager.score)
+	
+	var health_label = ui.get_node_or_null("TopBar/VBoxContainer/HealthLabel")
+	if health_label:
+		health_label.text = I18n.translate("health") + ": " + str(GameManager.health) + "/" + str(GameManager.max_health)
+	
+	var wave_label = ui.get_node_or_null("TopBar/VBoxContainer/WaveLabel")
+	if wave_label:
+		wave_label.text = I18n.translate("wave") + ": " + str(GameManager.wave)
+	
+	# Обновляем кнопки
+	var pause_button = ui.get_node_or_null("PauseButton")
+	if pause_button:
+		pause_button.text = "||"  # Pause всегда символ
+	
+	print("✅ All UI texts updated with current language")
 
 func _on_game_over():
 	spawn_timer.stop()

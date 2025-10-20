@@ -1,6 +1,11 @@
 extends Node
 
 var current_language := "ru"
+var is_ready := false
+
+# ИСПРАВЛЕНО: Сигнал для уведомления когда язык установлен
+signal language_ready(lang: String)
+signal language_changed(lang: String)
 
 var translations := {
 	"ru": {
@@ -138,6 +143,9 @@ func _ready():
 	print("I18n autoload initialized")
 	# ИСПРАВЛЕНО: Немедленное определение языка без задержки
 	_detect_language_immediate()
+	is_ready = true
+	emit_signal("language_ready", current_language)
+	print("✅ I18n ready, language:", current_language)
 
 func _detect_language_immediate():
 	"""ИСПРАВЛЕНО: Немедленное определение языка браузера"""
@@ -181,8 +189,10 @@ func _update_language_from_yandex():
 	"""
 	var result = JavaScriptBridge.eval(code)
 	if result and translations.has(result) and result != current_language:
+		var old_lang = current_language
 		current_language = result
-		print("✅ Language updated from Yandex SDK: ", current_language)
+		print("✅ Language updated from Yandex SDK: ", old_lang, " → ", current_language)
+		emit_signal("language_changed", current_language)
 
 func detect_language():
 	"""Публичный метод для обратной совместимости"""

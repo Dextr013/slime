@@ -36,6 +36,12 @@ func _ready():
 		else:
 			print("⚠️ SDK timeout, using fallback")
 	
+	# ИСПРАВЛЕНО: Ждем готовности языка ПЕРЕД загрузкой данных
+	if not I18n.is_ready:
+		print("⏳ Waiting for I18n...")
+		await I18n.language_ready
+		print("✅ I18n ready")
+	
 	# Загрузка данных с таймаутом
 	print("⏳ Loading game data...")
 	data_timeout_reached = false
@@ -289,7 +295,8 @@ func _show_loading():
 func _hide_loading():
 	if play_button:
 		play_button.disabled = false
-		play_button.text = I18n.translate("play")
+		# ИСПРАВЛЕНО: Гарантируем что язык готов
+		play_button.text = I18n.translate("play") if I18n.is_ready else "PLAY"
 
 func _setup_ui():
 	if animated_title and animated_title.has_method("set_rainbow_colors"):
